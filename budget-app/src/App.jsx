@@ -686,16 +686,8 @@ function Dashboard({ user, onLogout }) {
     const newTxs = parseCSV(text);
     if (newTxs.length === 0) return;
 
-    // Filter to current month only
-    const [cy, cm] = currentMonth.split("-").map(Number);
-    const monthFiltered = newTxs.filter((t) => {
-      const d = new Date(t.date + "T12:00:00");
-      return d.getFullYear() === cy && d.getMonth() + 1 === cm;
-    });
-    if (monthFiltered.length === 0) { setImportCount(0); return; }
-
     // Apply recurring rules: match by name (contains) or exact amount
-    const ruledTxs = monthFiltered.map((t) => {
+    const ruledTxs = newTxs.map((t) => {
       const absAmount = Math.abs(t.amount);
       const match = rules.find((r) => {
         if (r.match_name) return t.description.toLowerCase().includes(r.match_name.toLowerCase());
@@ -722,7 +714,7 @@ function Dashboard({ user, onLogout }) {
       setImportCount(inserted.length);
       setTimeout(() => setImportCount(0), 3000);
     }
-  }, [transactions, rules, user.id, currentMonth]);
+  }, [transactions, rules, user.id]);
 
   const handleDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer?.files?.[0]; if (f?.name.endsWith(".csv")) handleFile(f); }, [handleFile]);
 
