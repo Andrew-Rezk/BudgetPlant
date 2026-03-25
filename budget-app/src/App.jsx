@@ -402,22 +402,30 @@ function ManageRulesModal({ rules, categories, onSave, onClose }) {
   const [items, setItems] = useState(rules);
   const [adding, setAdding] = useState(false);
   const [editIdx, setEditIdx] = useState(null);
-  const [form, setForm] = useState({ label: "", amount: "", category: "housing" });
+  const [form, setForm] = useState({ label: "", matchType: "amount", amount: "", matchName: "", category: "housing" });
 
   const catMap = Object.fromEntries(categories.map((c) => [c.cat_id, c]));
 
-  const startAdd = () => { setForm({ label: "", amount: "", category: "housing" }); setAdding(true); setEditIdx(null); };
-  const startEdit = (i) => { setForm({ label: items[i].label, amount: String(Math.abs(items[i].amount)), category: items[i].category }); setEditIdx(i); setAdding(false); };
+  const startAdd = () => { setForm({ label: "", matchType: "amount", amount: "", matchName: "", category: "housing" }); setAdding(true); setEditIdx(null); };
+  const startEdit = (i) => { const r = items[i]; setForm({ label: r.label, matchType: r.match_name ? "name" : "amount", amount: String(Math.abs(r.amount || 0)), matchName: r.match_name || "", category: r.category }); setEditIdx(i); setAdding(false); };
   const cancelForm = () => { setAdding(false); setEditIdx(null); };
 
   const saveForm = () => {
-    const amt = parseFloat(form.amount);
-    if (!form.label.trim() || isNaN(amt) || amt === 0) return;
+    if (!form.label.trim()) return;
+    let ruleData;
+    if (form.matchType === "name") {
+      if (!form.matchName.trim()) return;
+      ruleData = { label: form.label.trim(), amount: 0, match_name: form.matchName.trim(), category: form.category };
+    } else {
+      const amt = parseFloat(form.amount);
+      if (isNaN(amt) || amt === 0) return;
+      ruleData = { label: form.label.trim(), amount: amt, match_name: null, category: form.category };
+    }
     if (adding) {
-      setItems([...items, { label: form.label.trim(), amount: amt, category: form.category }]);
+      setItems([...items, ruleData]);
     } else if (editIdx !== null) {
       const updated = [...items];
-      updated[editIdx] = { ...updated[editIdx], label: form.label.trim(), amount: amt, category: form.category };
+      updated[editIdx] = { ...updated[editIdx], ...ruleData };
       setItems(updated);
     }
     cancelForm();
@@ -429,7 +437,7 @@ function ManageRulesModal({ rules, categories, onSave, onClose }) {
   return (
     <Modal title="Recurring Rules" onClose={onClose} width={460}>
       <div style={{ fontSize: 12, color: "#666", marginBottom: 16, lineHeight: 1.5 }}>
-        When a transaction matches an exact amount, it auto-labels with the name and category you set here.
+        When a transaction matches by amount or name, it auto-labels with the name and category you set here.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16, maxHeight: 280, overflowY: "auto" }}>
         {items.length === 0 && !showForm && (
@@ -446,7 +454,7 @@ function ManageRulesModal({ rules, categories, onSave, onClose }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, color: "#ccc" }}>{r.label}</div>
                 <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
-                  ${Math.abs(r.amount).toFixed(2)} → {cat.label}
+                  {r.match_name ? `"${r.match_name}"` : `$${Math.abs(r.amount).toFixed(2)}`} → {cat.label}
                 </div>
               </div>
               <button onClick={() => startEdit(i)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 13, padding: "2px 6px" }}>✎</button>
@@ -458,18 +466,36 @@ function ManageRulesModal({ rules, categories, onSave, onClose }) {
 
       {showForm && (
         <div style={{ background: "#171717", borderRadius: 12, padding: 16, marginBottom: 16, border: "1px solid #2a2a2a" }}>
-          <div className="rules-form-row" style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-            <div style={{ flex: 2 }}>
-              <label style={labelStyle}>Label</label>
-              <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} style={inputStyle} placeholder="e.g. Rent"
-                onFocus={(e) => e.target.style.borderColor = "#E07A5F"} onBlur={(e) => e.target.style.borderColor = "#333"} />
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Label</label>
+            <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} style={inputStyle} placeholder="e.g. Netflix"
+              onFocus={(e) => e.target.style.borderColor = "#E07A5F"} onBlur={(e) => e.target.style.borderColor = "#333"} />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>Match By</label>
+            <div style={{ display: "flex", gap: 4, background: "#151515", borderRadius: 8, padding: 3, width: "fit-content" }}>
+              {["amount", "name"].map((t) => (
+                <button key={t} onClick={() => setForm({ ...form, matchType: t })} style={{
+                  padding: "5px 14px", border: "none", borderRadius: 6, cursor: "pointer",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, transition: "all 0.15s",
+                  background: form.matchType === t ? "#282828" : "transparent", color: form.matchType === t ? "#E0E0E0" : "#555",
+                }}>{t === "amount" ? "Amount" : "Name"}</button>
+              ))}
             </div>
-            <div style={{ flex: 1 }}>
+          </div>
+          {form.matchType === "amount" ? (
+            <div style={{ marginBottom: 12 }}>
               <label style={labelStyle}>Exact Amount</label>
               <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} style={inputStyle} type="number" step="0.01" placeholder="2491.00"
                 onFocus={(e) => e.target.style.borderColor = "#E07A5F"} onBlur={(e) => e.target.style.borderColor = "#333"} />
             </div>
-          </div>
+          ) : (
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>Name Contains</label>
+              <input value={form.matchName} onChange={(e) => setForm({ ...form, matchName: e.target.value })} style={inputStyle} placeholder="e.g. NETFLIX"
+                onFocus={(e) => e.target.style.borderColor = "#E07A5F"} onBlur={(e) => e.target.style.borderColor = "#333"} />
+            </div>
+          )}
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>Category</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
@@ -668,10 +694,13 @@ function Dashboard({ user, onLogout }) {
     });
     if (monthFiltered.length === 0) { setImportCount(0); return; }
 
-    // Apply recurring rules: exact amount match overrides description + category
+    // Apply recurring rules: match by name (contains) or exact amount
     const ruledTxs = monthFiltered.map((t) => {
       const absAmount = Math.abs(t.amount);
-      const match = rules.find((r) => Math.abs(Math.abs(r.amount) - absAmount) < 0.01);
+      const match = rules.find((r) => {
+        if (r.match_name) return t.description.toLowerCase().includes(r.match_name.toLowerCase());
+        return Math.abs(Math.abs(r.amount) - absAmount) < 0.01;
+      });
       if (match) {
         return { ...t, description: match.label, category: match.category, manual_category: true };
       }
@@ -721,7 +750,7 @@ function Dashboard({ user, onLogout }) {
   const updateRules = useCallback(async (newRules) => {
     await supabase.from("recurring_rules").delete().eq("user_id", user.id);
     if (newRules.length > 0) {
-      const toInsert = newRules.map((r) => ({ label: r.label, amount: r.amount, category: r.category, user_id: user.id }));
+      const toInsert = newRules.map((r) => ({ label: r.label, amount: r.amount || 0, match_name: r.match_name || null, category: r.category, user_id: user.id }));
       const { data } = await supabase.from("recurring_rules").insert(toInsert).select();
       if (data) setRules(data);
       else setRules(newRules);
