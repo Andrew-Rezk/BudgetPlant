@@ -589,8 +589,16 @@ function Dashboard({ user, onLogout }) {
     const newTxs = parseCSV(text);
     if (newTxs.length === 0) return;
 
+    // Filter to current month only
+    const [cy, cm] = currentMonth.split("-").map(Number);
+    const monthFiltered = newTxs.filter((t) => {
+      const d = new Date(t.date + "T12:00:00");
+      return d.getFullYear() === cy && d.getMonth() + 1 === cm;
+    });
+    if (monthFiltered.length === 0) { setImportCount(0); return; }
+
     // Apply recurring rules: exact amount match overrides description + category
-    const ruledTxs = newTxs.map((t) => {
+    const ruledTxs = monthFiltered.map((t) => {
       const absAmount = Math.abs(t.amount);
       const match = rules.find((r) => Math.abs(Math.abs(r.amount) - absAmount) < 0.01);
       if (match) {
@@ -613,11 +621,8 @@ function Dashboard({ user, onLogout }) {
       setTransactions((prev) => [...inserted, ...prev]);
       setImportCount(inserted.length);
       setTimeout(() => setImportCount(0), 3000);
-      const latest = inserted.sort((a, b) => b.date.localeCompare(a.date))[0];
-      const d = new Date(latest.date + "T12:00:00");
-      setCurrentMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     }
-  }, [transactions, rules, user.id]);
+  }, [transactions, rules, user.id, currentMonth]);
 
   const handleDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer?.files?.[0]; if (f?.name.endsWith(".csv")) handleFile(f); }, [handleFile]);
 
@@ -655,10 +660,15 @@ function Dashboard({ user, onLogout }) {
     setShowRulesManager(false);
   }, [user.id]);
 
-  const clearAll = useCallback(async () => {
-    await supabase.from("transactions").delete().eq("user_id", user.id);
-    setTransactions([]);
-  }, [user.id]);
+  const clearMonth = useCallback(async () => {
+    const [cy, cm] = currentMonth.split("-").map(Number);
+    const monthTxIds = transactions
+      .filter((t) => { const d = new Date(t.date + "T12:00:00"); return d.getFullYear() === cy && d.getMonth() + 1 === cm; })
+      .map((t) => t.id);
+    if (monthTxIds.length === 0) return;
+    await supabase.from("transactions").delete().in("id", monthTxIds);
+    setTransactions((prev) => prev.filter((t) => !monthTxIds.includes(t.id)));
+  }, [user.id, currentMonth, transactions]);
 
   const [year, month] = currentMonth.split("-").map(Number);
   const filtered = useMemo(() => {
@@ -717,9 +727,9 @@ function Dashboard({ user, onLogout }) {
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#B48EAD"; e.currentTarget.style.color = "#B48EAD"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Categories</button>
             <button onClick={() => setShowRulesManager(true)} style={{ background: "transparent", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#8FBCBB"; e.currentTarget.style.color = "#8FBCBB"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Rules</button>
-            {transactions.length > 0 && (
-              <button onClick={clearAll} style={{ background: "transparent", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#EF5350"; e.currentTarget.style.color = "#EF5350"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Clear</button>
+            {filtered.length > 0 && (
+              <button onClick={clearMonth} style={{ background: "transparent", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#EF5350"; e.currentTarget.style.color = "#EF5350"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Clear Month</button>
             )}
             <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ""; }} />
             <button onClick={() => fileRef.current?.click()} style={{ background: "#E07A5F", border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", boxShadow: "0 2px 12px rgba(224,122,95,0.3)" }}
