@@ -510,8 +510,61 @@ function ManageRulesModal({ rules, categories, onSave, onClose }) {
   );
 }
 
+/* ═══════════════ PIE CHART ═══════════════ */
+function PieChart({ breakdown, selectedCat, onSelectCategory }) {
+  const total = breakdown.reduce((s, b) => s + b.total, 0);
+  if (total === 0) return null;
+  const size = 200, cx = 100, cy = 100, outerR = 88, innerR = 52;
+  let angle = -Math.PI / 2;
+  const slices = breakdown.map((b) => {
+    const sweep = (b.total / total) * 2 * Math.PI;
+    const start = angle;
+    angle += sweep;
+    return { ...b, start, end: angle };
+  });
+  const arc = (s, e, ro, ri) => {
+    const x1 = cx + ro * Math.cos(s), y1 = cy + ro * Math.sin(s);
+    const x2 = cx + ro * Math.cos(e), y2 = cy + ro * Math.sin(e);
+    const x3 = cx + ri * Math.cos(e), y3 = cy + ri * Math.sin(e);
+    const x4 = cx + ri * Math.cos(s), y4 = cy + ri * Math.sin(s);
+    const lg = e - s > Math.PI ? 1 : 0;
+    return `M${x1} ${y1} A${ro} ${ro} 0 ${lg} 1 ${x2} ${y2} L${x3} ${y3} A${ri} ${ri} 0 ${lg} 0 ${x4} ${y4}Z`;
+  };
+  const active = selectedCat ? breakdown.find((b) => b.cat_id === selectedCat) : null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
+      <svg width={size} height={size} style={{ flexShrink: 0 }}>
+        {slices.map((s) => (
+          <path key={s.cat_id} d={arc(s.start, s.end, outerR, innerR)} fill={s.color}
+            opacity={selectedCat && selectedCat !== s.cat_id ? 0.25 : 1}
+            style={{ cursor: "pointer", transition: "opacity 0.15s" }}
+            onClick={() => onSelectCategory(s.cat_id === selectedCat ? null : s.cat_id)} />
+        ))}
+        <text x={cx} y={cy - 7} textAnchor="middle" fill="#888" fontSize="10" fontFamily="'DM Sans', sans-serif">{active ? active.label : "Total"}</text>
+        <text x={cx} y={cy + 10} textAnchor="middle" fill="#E0E0E0" fontSize="14" fontFamily="'DM Mono', monospace" fontWeight="500">
+          {formatMoney(-(active ? active.total : total))}
+        </text>
+      </svg>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+        {breakdown.map((b) => (
+          <div key={b.cat_id} onClick={() => onSelectCategory(b.cat_id === selectedCat ? null : b.cat_id)}
+            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+              opacity: selectedCat && selectedCat !== b.cat_id ? 0.3 : 1, transition: "opacity 0.15s" }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: b.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: "#ccc" }}>{b.icon} {b.label}</span>
+            <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: "#666", marginLeft: 6 }}>
+              {((b.total / total) * 100).toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════ CATEGORY BREAKDOWN ═══════════════ */
-function CategoryBreakdown({ transactions, categories }) {
+function CategoryBreakdown({ transactions, categories, selectedCat, onSelectCategory }) {
+  const [chartType, setChartType] = useState("bar");
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.cat_id, c])), [categories]);
   const breakdown = useMemo(() => {
     const totals = {};
@@ -522,24 +575,41 @@ function CategoryBreakdown({ transactions, categories }) {
   const totalSpend = breakdown.reduce((s, b) => s + b.total, 0);
   if (breakdown.length === 0) return null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {breakdown.map((b) => (
-        <div key={b.cat_id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 16, width: 28, textAlign: "center", flexShrink: 0 }}>{b.icon}</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 13, color: "#ccc" }}>{b.label}</span>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#E0E0E0" }}>{formatMoney(-b.total)}</span>
+    <div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: "#151515", borderRadius: 8, padding: 3, width: "fit-content" }}>
+        {["bar", "pie"].map((t) => (
+          <button key={t} onClick={() => setChartType(t)} style={{
+            padding: "5px 14px", border: "none", borderRadius: 6, cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, transition: "all 0.15s",
+            background: chartType === t ? "#282828" : "transparent", color: chartType === t ? "#E0E0E0" : "#555",
+          }}>{t === "bar" ? "Bar" : "Pie"}</button>
+        ))}
+      </div>
+      {chartType === "pie" ? (
+        <PieChart breakdown={breakdown} selectedCat={selectedCat} onSelectCategory={onSelectCategory} />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {breakdown.map((b) => (
+            <div key={b.cat_id} onClick={() => onSelectCategory(b.cat_id === selectedCat ? null : b.cat_id)}
+              style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
+                opacity: selectedCat && selectedCat !== b.cat_id ? 0.35 : 1, transition: "opacity 0.15s" }}>
+              <span style={{ fontSize: 16, width: 28, textAlign: "center", flexShrink: 0 }}>{b.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: "#ccc" }}>{b.label}</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#E0E0E0" }}>{formatMoney(-b.total)}</span>
+                </div>
+                <div style={{ height: 6, background: "#2a2a2a", borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 3, background: b.color, width: `${(b.total / maxVal) * 100}%`, transition: "width 0.5s ease" }} />
+                </div>
+              </div>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#666", width: 40, textAlign: "right", flexShrink: 0 }}>
+                {((b.total / totalSpend) * 100).toFixed(0)}%
+              </span>
             </div>
-            <div style={{ height: 6, background: "#2a2a2a", borderRadius: 3, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 3, background: b.color, width: `${(b.total / maxVal) * 100}%`, transition: "width 0.5s ease" }} />
-            </div>
-          </div>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#666", width: 40, textAlign: "right", flexShrink: 0 }}>
-            {((b.total / totalSpend) * 100).toFixed(0)}%
-          </span>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -557,6 +627,7 @@ function Dashboard({ user, onLogout }) {
   const [importCount, setImportCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedCat, setSelectedCat] = useState(null);
   const fileRef = useRef(null);
 
   // Load data from Supabase
@@ -682,7 +753,8 @@ function Dashboard({ user, onLogout }) {
     return [...set].sort().reverse();
   }, [transactions]);
   const totals = useMemo(() => { let income = 0, expenses = 0; filtered.forEach((t) => { if (t.amount >= 0) income += t.amount; else expenses += Math.abs(t.amount); }); return { income, expenses, net: income - expenses }; }, [filtered]);
-  const navMonth = (dir) => { const d = new Date(year, month - 1 + dir, 1); setCurrentMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); };
+  const navMonth = (dir) => { const d = new Date(year, month - 1 + dir, 1); setCurrentMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); setSelectedCat(null); };
+  const displayTxs = selectedCat ? filtered.filter((t) => t.category === selectedCat) : filtered;
 
   if (!loaded) return <div style={{ minHeight: "100vh", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", color: "#555" }}>Loading...</div>;
   const editingTxObj = editingTx ? transactions.find((t) => t.id === editingTx) : null;
@@ -772,7 +844,7 @@ function Dashboard({ user, onLogout }) {
             {filtered.length > 0 && (
               <div style={{ background: "#1a1a1a", borderRadius: 14, padding: 20, border: "1px solid #222", marginBottom: 28 }}>
                 <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 16 }}>Spending Breakdown</div>
-                <CategoryBreakdown transactions={filtered} categories={categories} />
+                <CategoryBreakdown transactions={filtered} categories={categories} selectedCat={selectedCat} onSelectCategory={setSelectedCat} />
               </div>
             )}
 
@@ -782,7 +854,7 @@ function Dashboard({ user, onLogout }) {
                   const [y, mo] = m.split("-").map(Number);
                   const active = m === currentMonth;
                   return (
-                    <button key={m} onClick={() => setCurrentMonth(m)} style={{
+                    <button key={m} onClick={() => { setCurrentMonth(m); setSelectedCat(null); }} style={{
                       padding: "6px 12px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
                       background: active ? "#E07A5F22" : "transparent", border: active ? "1px solid #E07A5F55" : "1px solid #222",
                       color: active ? "#E07A5F" : "#666",
@@ -792,18 +864,28 @@ function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Transactions · {filtered.length}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2 }}>
+                {selectedCat ? `${catMap[selectedCat]?.icon || ""} ${catMap[selectedCat]?.label || selectedCat} · ${displayTxs.length}` : `Transactions · ${filtered.length}`}
+              </div>
+              {selectedCat && (
+                <button onClick={() => setSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
+                  × clear
+                </button>
+              )}
+            </div>
             {filtered.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 20px", color: "#444", fontSize: 14, borderRadius: 14, border: "1px dashed #222" }}>No transactions this month</div>
             ) : (
               <div style={{ borderRadius: 14, border: "1px solid #222", overflow: "hidden", background: "#161616" }}>
-                {filtered.map((tx, i) => {
+                {displayTxs.map((tx, i) => {
                   const cat = catMap[tx.category] || { icon: "📦", label: tx.category, color: "#90A4AE" };
                   const d = new Date(tx.date + "T12:00:00");
                   return (
                     <div key={tx.id} className="tx-row" onClick={() => setEditingTx(tx.id)} style={{
                       display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
-                      borderBottom: i < filtered.length - 1 ? "1px solid #1e1e1e" : "none",
+                      borderBottom: i < displayTxs.length - 1 ? "1px solid #1e1e1e" : "none",
                       animation: `fadeInUp 0.3s ease ${Math.min(i * 0.03, 0.5)}s both`, cursor: "pointer",
                     }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: `${cat.color}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{cat.icon}</div>
