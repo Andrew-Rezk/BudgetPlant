@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "./supabase";
+import * as XLSX from "xlsx";
 
 /* ─── Default Categories ─── */
 const DEFAULT_CATEGORIES = [
@@ -143,6 +144,42 @@ function parseCSV(text) {
     if (!date) return null;
     return { date: date.toISOString().slice(0, 10), description: desc, amount, category: categorize(desc), manual_category: false };
   }).filter(Boolean);
+}
+
+const AMEX_MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+function parseAmexDate(str) {
+  const m = String(str).trim().match(/^(\d{1,2})\s+(\w+)\.?\s+(\d{4})$/);
+  if (!m) return null;
+  const mo = AMEX_MONTHS[m[2].toLowerCase().slice(0, 3)];
+  return mo !== undefined ? new Date(+m[3], mo, +m[1]) : null;
+}
+
+function parseAmexXLS(data) {
+  const wb = XLSX.read(data, { type: "array" });
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+  const headerIdx = rows.findIndex((r) => String(r[0]).trim() === "Date");
+  if (headerIdx === -1) return [];
+  const txs = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || !row[0]) continue;
+    const date = parseAmexDate(row[0]);
+    if (!date) continue;
+    const col2 = String(row[2] || "").trim();
+    const col3 = String(row[3] || "").trim();
+    const col8 = String(row[8] || "").trim();
+    let description, amount;
+    if (/^-?\$[\d,.]+$/.test(col2)) {
+      amount = parseAmount(col2);
+      description = col8 || "Payment";
+    } else {
+      description = col2;
+      amount = -Math.abs(parseAmount(col3));
+    }
+    if (!description || amount === 0) continue;
+    txs.push({ date: date.toISOString().slice(0, 10), description, amount, category: categorize(description), manual_category: false });
+  }
+  return txs;
 }
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -683,8 +720,15 @@ function Dashboard({ user, onLogout }) {
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
-    const text = await file.text();
-    const newTxs = parseCSV(text);
+    let newTxs;
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".xls") || name.endsWith(".xlsx")) {
+      const buf = await file.arrayBuffer();
+      newTxs = parseAmexXLS(new Uint8Array(buf));
+    } else {
+      const text = await file.text();
+      newTxs = parseCSV(text);
+    }
     if (newTxs.length === 0) return;
 
     // Store original description and apply recurring rules
@@ -718,7 +762,7 @@ function Dashboard({ user, onLogout }) {
     }
   }, [transactions, rules, user.id]);
 
-  const handleDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer?.files?.[0]; if (f?.name.endsWith(".csv")) handleFile(f); }, [handleFile]);
+  const handleDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer?.files?.[0]; if (f && /\.(csv|xls|xlsx)$/i.test(f.name)) handleFile(f); }, [handleFile]);
 
   const updateTransaction = useCallback(async (updatedTx) => {
     const { id, user_id, created_at, ...updates } = updatedTx;
@@ -821,7 +865,7 @@ function Dashboard({ user, onLogout }) {
 
       {dragOver && (
         <div style={{ position: "fixed", inset: 0, zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(17,17,17,0.9)", border: "3px dashed #E07A5F" }}>
-          <div style={{ textAlign: "center" }}><div style={{ fontSize: 48, marginBottom: 12 }}>📄</div><div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 28, color: "#E07A5F" }}>Drop your CSV here</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontSize: 48, marginBottom: 12 }}>📄</div><div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 28, color: "#E07A5F" }}>Drop your CSV or XLS here</div></div>
         </div>
       )}
 
@@ -863,7 +907,7 @@ function Dashboard({ user, onLogout }) {
               <button onClick={clearMonth} style={{ background: "transparent", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#EF5350"; e.currentTarget.style.color = "#EF5350"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Clear Month</button>
             )}
-            <input ref={fileRef} type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ""; }} />
+            <input ref={fileRef} type="file" accept=".csv,.xls,.xlsx" style={{ display: "none" }} onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ""; }} />
             <button onClick={() => fileRef.current?.click()} style={{ background: "#E07A5F", border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", boxShadow: "0 2px 12px rgba(224,122,95,0.3)" }}
               onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>Upload CSV</button>
           </div>
@@ -873,7 +917,7 @@ function Dashboard({ user, onLogout }) {
           <div style={{ border: "2px dashed #2a2a2a", borderRadius: 20, padding: "80px 40px", textAlign: "center", animation: "fadeInUp 0.5s ease" }}>
             <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.6 }}>🌴</div>
             <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 26, color: "#ccc", marginBottom: 8 }}>Start tracking your money</div>
-            <div style={{ fontSize: 14, color: "#666", maxWidth: 380, margin: "0 auto", lineHeight: 1.6 }}>Upload a CSV from your bank to get started. Transactions auto-categorize. Drag & drop works too.</div>
+            <div style={{ fontSize: 14, color: "#666", maxWidth: 380, margin: "0 auto", lineHeight: 1.6 }}>Upload a CSV or Amex XLS statement to get started. Transactions auto-categorize. Drag & drop works too.</div>
           </div>
         ) : (
           <>
