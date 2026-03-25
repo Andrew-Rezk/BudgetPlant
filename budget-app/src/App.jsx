@@ -752,10 +752,31 @@ function Dashboard({ user, onLogout }) {
       savedRules = [];
     }
 
-    // Apply rules to all existing transactions
+    // Apply rules to all existing transactions (two-pass)
+    const toUpdate = [];
+    const updatedIds = new Set();
+
+    // Pass 1: handle edited rules — find transactions with an old rule's label and update them
+    for (const oldRule of rules) {
+      const newRule = savedRules.find((r) => {
+        if (oldRule.match_name && r.match_name) return r.match_name === oldRule.match_name;
+        if (!oldRule.match_name && !r.match_name) return Math.abs(Math.abs(r.amount) - Math.abs(oldRule.amount)) < 0.01;
+        return false;
+      });
+      if (newRule && (newRule.label !== oldRule.label || newRule.category !== oldRule.category)) {
+        for (const tx of transactions) {
+          if (tx.description === oldRule.label && !updatedIds.has(tx.id)) {
+            toUpdate.push({ ...tx, description: newRule.label, category: newRule.category, manual_category: true });
+            updatedIds.add(tx.id);
+          }
+        }
+      }
+    }
+
+    // Pass 2: apply rules to any remaining unmatched transactions (new rules or first-time matches)
     if (savedRules.length > 0) {
-      const toUpdate = [];
       for (const tx of transactions) {
+        if (updatedIds.has(tx.id)) continue;
         const absAmount = Math.abs(tx.amount);
         const match = savedRules.find((r) => {
           if (r.match_name) return tx.description.toLowerCase().includes(r.match_name.toLowerCase());
@@ -765,12 +786,13 @@ function Dashboard({ user, onLogout }) {
           toUpdate.push({ ...tx, description: match.label, category: match.category, manual_category: true });
         }
       }
-      if (toUpdate.length > 0) {
-        await Promise.all(toUpdate.map(({ id, description, category }) =>
-          supabase.from("transactions").update({ description, category, manual_category: true }).eq("id", id)
-        ));
-        setTransactions((prev) => prev.map((t) => toUpdate.find((u) => u.id === t.id) || t));
-      }
+    }
+
+    if (toUpdate.length > 0) {
+      await Promise.all(toUpdate.map(({ id, description, category }) =>
+        supabase.from("transactions").update({ description, category, manual_category: true }).eq("id", id)
+      ));
+      setTransactions((prev) => prev.map((t) => toUpdate.find((u) => u.id === t.id) || t));
     }
 
     setShowRulesManager(false);
