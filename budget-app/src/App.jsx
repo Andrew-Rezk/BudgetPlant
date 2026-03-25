@@ -180,7 +180,7 @@ function AuthScreen({ onAuth }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ width: 380, animation: "fadeInUp 0.5s ease" }}>
+      <div style={{ width: "100%", maxWidth: 380, animation: "fadeInUp 0.5s ease" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
           <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 36, color: "#F5F5F5", fontWeight: 400, marginBottom: 6 }}>Budget</h1>
@@ -458,7 +458,7 @@ function ManageRulesModal({ rules, categories, onSave, onClose }) {
 
       {showForm && (
         <div style={{ background: "#171717", borderRadius: 12, padding: 16, marginBottom: 16, border: "1px solid #2a2a2a" }}>
-          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div className="rules-form-row" style={{ display: "flex", gap: 10, marginBottom: 12 }}>
             <div style={{ flex: 2 }}>
               <label style={labelStyle}>Label</label>
               <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} style={inputStyle} placeholder="e.g. Rent"
@@ -754,7 +754,7 @@ function Dashboard({ user, onLogout }) {
               <button onClick={() => navMonth(1)} style={{ background: "transparent", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 14px", color: "#888", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>›</button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
+            <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
               {[
                 { label: "Income", value: totals.income, color: "#2E7D32", prefix: "+" },
                 { label: "Expenses", value: totals.expenses, color: "#E07A5F", prefix: "-" },
