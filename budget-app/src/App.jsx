@@ -397,6 +397,119 @@ function ManageCategoriesModal({ categories, onSave, onClose }) {
   );
 }
 
+/* ═══════════════ MANAGE RECURRING RULES ═══════════════ */
+function ManageRulesModal({ rules, categories, onSave, onClose }) {
+  const [items, setItems] = useState(rules);
+  const [adding, setAdding] = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+  const [form, setForm] = useState({ label: "", amount: "", category: "housing" });
+
+  const catMap = Object.fromEntries(categories.map((c) => [c.cat_id, c]));
+
+  const startAdd = () => { setForm({ label: "", amount: "", category: "housing" }); setAdding(true); setEditIdx(null); };
+  const startEdit = (i) => { setForm({ label: items[i].label, amount: String(Math.abs(items[i].amount)), category: items[i].category }); setEditIdx(i); setAdding(false); };
+  const cancelForm = () => { setAdding(false); setEditIdx(null); };
+
+  const saveForm = () => {
+    const amt = parseFloat(form.amount);
+    if (!form.label.trim() || isNaN(amt) || amt === 0) return;
+    if (adding) {
+      setItems([...items, { label: form.label.trim(), amount: amt, category: form.category }]);
+    } else if (editIdx !== null) {
+      const updated = [...items];
+      updated[editIdx] = { ...updated[editIdx], label: form.label.trim(), amount: amt, category: form.category };
+      setItems(updated);
+    }
+    cancelForm();
+  };
+
+  const deleteAt = (i) => setItems(items.filter((_, idx) => idx !== i));
+  const showForm = adding || editIdx !== null;
+
+  return (
+    <Modal title="Recurring Rules" onClose={onClose} width={460}>
+      <div style={{ fontSize: 12, color: "#666", marginBottom: 16, lineHeight: 1.5 }}>
+        When a transaction matches an exact amount, it auto-labels with the name and category you set here.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16, maxHeight: 280, overflowY: "auto" }}>
+        {items.length === 0 && !showForm && (
+          <div style={{ textAlign: "center", padding: "24px", color: "#444", fontSize: 13 }}>No rules yet — add one below</div>
+        )}
+        {items.map((r, i) => {
+          const cat = catMap[r.category] || { icon: "📦", color: "#90A4AE", label: r.category };
+          return (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+              background: editIdx === i ? "#1a1a1a" : "transparent",
+            }}>
+              <span style={{ fontSize: 16, width: 24, textAlign: "center" }}>{cat.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: "#ccc" }}>{r.label}</div>
+                <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
+                  ${Math.abs(r.amount).toFixed(2)} → {cat.label}
+                </div>
+              </div>
+              <button onClick={() => startEdit(i)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 13, padding: "2px 6px" }}>✎</button>
+              <button onClick={() => deleteAt(i)} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 15, padding: "2px 6px" }}>×</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {showForm && (
+        <div style={{ background: "#171717", borderRadius: 12, padding: 16, marginBottom: 16, border: "1px solid #2a2a2a" }}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <div style={{ flex: 2 }}>
+              <label style={labelStyle}>Label</label>
+              <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} style={inputStyle} placeholder="e.g. Rent"
+                onFocus={(e) => e.target.style.borderColor = "#E07A5F"} onBlur={(e) => e.target.style.borderColor = "#333"} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Exact Amount</label>
+              <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} style={inputStyle} type="number" step="0.01" placeholder="2491.00"
+                onFocus={(e) => e.target.style.borderColor = "#E07A5F"} onBlur={(e) => e.target.style.borderColor = "#333"} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Category</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {categories.map((c) => (
+                <button key={c.cat_id} onClick={() => setForm({ ...form, category: c.cat_id })} style={{
+                  display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 7, cursor: "pointer",
+                  fontSize: 12, fontFamily: "'DM Sans', sans-serif",
+                  background: form.category === c.cat_id ? `${c.color}25` : "#222",
+                  border: form.category === c.cat_id ? `1px solid ${c.color}66` : "1px solid #333",
+                  color: form.category === c.cat_id ? c.color : "#888",
+                }}>
+                  <span style={{ fontSize: 13 }}>{c.icon}</span> {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={cancelForm} style={{ flex: 1, padding: 10, background: "transparent", border: "1px solid #333", borderRadius: 8, color: "#888", cursor: "pointer", fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+            <button onClick={saveForm} style={{ flex: 1, padding: 10, background: "#E07A5F", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+              {adding ? "Add Rule" : "Update"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!showForm && (
+        <button onClick={startAdd} style={{
+          width: "100%", padding: "11px", border: "1px dashed #333", borderRadius: 10,
+          background: "transparent", color: "#888", fontSize: 13, cursor: "pointer",
+          fontFamily: "'DM Sans', sans-serif", marginBottom: 16,
+        }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#8FBCBB"; e.currentTarget.style.color = "#8FBCBB"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>
+          + Add Rule
+        </button>
+      )}
+      <button onClick={() => onSave(items)} style={btnPrimary}>Save Rules</button>
+    </Modal>
+  );
+}
+
 /* ═══════════════ CATEGORY BREAKDOWN ═══════════════ */
 function CategoryBreakdown({ transactions, categories }) {
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.cat_id, c])), [categories]);
@@ -438,6 +551,8 @@ function Dashboard({ user, onLogout }) {
   const [currentMonth, setCurrentMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; });
   const [editingTx, setEditingTx] = useState(null);
   const [showCatManager, setShowCatManager] = useState(false);
+  const [showRulesManager, setShowRulesManager] = useState(false);
+  const [rules, setRules] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [importCount, setImportCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -458,6 +573,10 @@ function Dashboard({ user, onLogout }) {
         const { data: inserted } = await supabase.from("categories").insert(toInsert).select();
         setCategories(inserted || DEFAULT_CATEGORIES);
       }
+
+      const { data: rulesData } = await supabase.from("recurring_rules").select("*").eq("user_id", user.id);
+      if (rulesData) setRules(rulesData);
+
       setLoaded(true);
     })();
   }, [user.id]);
@@ -470,9 +589,19 @@ function Dashboard({ user, onLogout }) {
     const newTxs = parseCSV(text);
     if (newTxs.length === 0) return;
 
+    // Apply recurring rules: exact amount match overrides description + category
+    const ruledTxs = newTxs.map((t) => {
+      const absAmount = Math.abs(t.amount);
+      const match = rules.find((r) => Math.abs(Math.abs(r.amount) - absAmount) < 0.01);
+      if (match) {
+        return { ...t, description: match.label, category: match.category, manual_category: true };
+      }
+      return t;
+    });
+
     // Deduplicate
     const existing = new Set(transactions.map((t) => `${t.date}|${t.description}|${t.amount}`));
-    const unique = newTxs.filter((t) => !existing.has(`${t.date}|${t.description}|${t.amount}`));
+    const unique = ruledTxs.filter((t) => !existing.has(`${t.date}|${t.description}|${t.amount}`));
     if (unique.length === 0) { setImportCount(0); return; }
 
     setSaving(true);
@@ -488,7 +617,7 @@ function Dashboard({ user, onLogout }) {
       const d = new Date(latest.date + "T12:00:00");
       setCurrentMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     }
-  }, [transactions, user.id]);
+  }, [transactions, rules, user.id]);
 
   const handleDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer?.files?.[0]; if (f?.name.endsWith(".csv")) handleFile(f); }, [handleFile]);
 
@@ -506,12 +635,24 @@ function Dashboard({ user, onLogout }) {
   }, []);
 
   const updateCategories = useCallback(async (newCats) => {
-    // Delete all and re-insert
     await supabase.from("categories").delete().eq("user_id", user.id);
     const toInsert = newCats.map((c, i) => ({ cat_id: c.cat_id, label: c.label, icon: c.icon, color: c.color, sort_order: i, user_id: user.id }));
     const { data } = await supabase.from("categories").insert(toInsert).select();
     if (data) setCategories(data);
     setShowCatManager(false);
+  }, [user.id]);
+
+  const updateRules = useCallback(async (newRules) => {
+    await supabase.from("recurring_rules").delete().eq("user_id", user.id);
+    if (newRules.length > 0) {
+      const toInsert = newRules.map((r) => ({ label: r.label, amount: r.amount, category: r.category, user_id: user.id }));
+      const { data } = await supabase.from("recurring_rules").insert(toInsert).select();
+      if (data) setRules(data);
+      else setRules(newRules);
+    } else {
+      setRules([]);
+    }
+    setShowRulesManager(false);
   }, [user.id]);
 
   const clearAll = useCallback(async () => {
@@ -559,6 +700,7 @@ function Dashboard({ user, onLogout }) {
 
       {editingTxObj && <EditTransactionModal tx={editingTxObj} categories={categories} onSave={updateTransaction} onDelete={deleteTransaction} onClose={() => setEditingTx(null)} />}
       {showCatManager && <ManageCategoriesModal categories={categories} onSave={updateCategories} onClose={() => setShowCatManager(false)} />}
+      {showRulesManager && <ManageRulesModal rules={rules} categories={categories} onSave={updateRules} onClose={() => setShowRulesManager(false)} />}
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 20px 60px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap", gap: 12 }}>
@@ -573,6 +715,8 @@ function Dashboard({ user, onLogout }) {
               onMouseEnter={(e) => e.currentTarget.style.color = "#aaa"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>Sign Out</button>
             <button onClick={() => setShowCatManager(true)} style={{ background: "transparent", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#B48EAD"; e.currentTarget.style.color = "#B48EAD"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Categories</button>
+            <button onClick={() => setShowRulesManager(true)} style={{ background: "transparent", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#8FBCBB"; e.currentTarget.style.color = "#8FBCBB"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Rules</button>
             {transactions.length > 0 && (
               <button onClick={clearAll} style={{ background: "transparent", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#EF5350"; e.currentTarget.style.color = "#EF5350"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>Clear</button>
