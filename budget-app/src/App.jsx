@@ -182,9 +182,9 @@ function AuthScreen({ onAuth }) {
     <div style={{ minHeight: "100vh", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 380, animation: "fadeInUp 0.5s ease" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
-          <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 36, color: "#F5F5F5", fontWeight: 400, marginBottom: 6 }}>Budget</h1>
-          <p style={{ fontSize: 14, color: "#555" }}>Track every dollar, effortlessly</p>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🌴</div>
+          <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 36, color: "#F5F5F5", fontWeight: 400, marginBottom: 6 }}>Budget Plant</h1>
+          <p style={{ fontSize: 14, color: "#555" }}>Grow your savings</p>
         </div>
         <div style={{ background: "#1a1a1a", borderRadius: 16, border: "1px solid #222", padding: 28 }}>
           <div style={{ display: "flex", marginBottom: 24, background: "#151515", borderRadius: 10, padding: 3 }}>
@@ -654,6 +654,7 @@ function Dashboard({ user, onLogout }) {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedCat, setSelectedCat] = useState(null);
+  const [viewTab, setViewTab] = useState("monthly");
   const fileRef = useRef(null);
 
   // Load data from Supabase
@@ -801,6 +802,16 @@ function Dashboard({ user, onLogout }) {
   const navMonth = (dir) => { const d = new Date(year, month - 1 + dir, 1); setCurrentMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); setSelectedCat(null); };
   const displayTxs = selectedCat ? filtered.filter((t) => t.category === selectedCat) : filtered;
 
+  // Year in Review
+  const yearTxs = useMemo(() => {
+    return transactions.filter((t) => {
+      const d = new Date(t.date + "T12:00:00");
+      return d.getFullYear() === year;
+    });
+  }, [transactions, year]);
+  const yearTotals = useMemo(() => { let income = 0, expenses = 0; yearTxs.forEach((t) => { if (t.amount >= 0) income += t.amount; else expenses += Math.abs(t.amount); }); return { income, expenses, net: income - expenses }; }, [yearTxs]);
+  const [yearSelectedCat, setYearSelectedCat] = useState(null);
+
   if (!loaded) return <div style={{ minHeight: "100vh", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", color: "#555" }}>Loading...</div>;
   const editingTxObj = editingTx ? transactions.find((t) => t.id === editingTx) : null;
 
@@ -832,7 +843,11 @@ function Dashboard({ user, onLogout }) {
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 20px 60px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap", gap: 12 }}>
           <div>
-            <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 38, fontWeight: 400, color: "#F5F5F5", letterSpacing: -0.5, lineHeight: 1.1 }}>Budget</h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 32 }}>🌴</span>
+              <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 38, fontWeight: 400, color: "#F5F5F5", letterSpacing: -0.5, lineHeight: 1.1 }}>Budget Plant</h1>
+            </div>
+            <div style={{ fontSize: 12, color: "#555", marginTop: 4, fontStyle: "italic" }}>Grow your savings</div>
             <div style={{ fontSize: 13, color: "#666", marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ color: "#E07A5F" }}>●</span> {user.email} — {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
             </div>
@@ -856,99 +871,189 @@ function Dashboard({ user, onLogout }) {
 
         {transactions.length === 0 ? (
           <div style={{ border: "2px dashed #2a2a2a", borderRadius: 20, padding: "80px 40px", textAlign: "center", animation: "fadeInUp 0.5s ease" }}>
-            <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.6 }}>📊</div>
+            <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.6 }}>🌴</div>
             <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 26, color: "#ccc", marginBottom: 8 }}>Start tracking your money</div>
             <div style={{ fontSize: 14, color: "#666", maxWidth: 380, margin: "0 auto", lineHeight: 1.6 }}>Upload a CSV from your bank to get started. Transactions auto-categorize. Drag & drop works too.</div>
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <button onClick={() => navMonth(-1)} style={{ background: "transparent", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 14px", color: "#888", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>‹</button>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 26, color: "#F5F5F5" }}>{MONTHS[month - 1]}</div>
-                <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{year}</div>
-              </div>
-              <button onClick={() => navMonth(1)} style={{ background: "transparent", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 14px", color: "#888", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>›</button>
-            </div>
-
-            <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
-              {[
-                { label: "Income", value: totals.income, color: "#2E7D32", prefix: "+" },
-                { label: "Expenses", value: totals.expenses, color: "#E07A5F", prefix: "-" },
-                { label: "Net", value: totals.net, color: totals.net >= 0 ? "#2E7D32" : "#E07A5F", prefix: totals.net >= 0 ? "+" : "" },
-              ].map((card) => (
-                <div key={card.label} style={{ background: "#1a1a1a", borderRadius: 14, padding: "18px 16px", border: "1px solid #222" }}>
-                  <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>{card.label}</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, color: card.color, letterSpacing: -0.5 }}>
-                    {card.prefix}${Math.abs(card.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                </div>
+            {/* Tab toggle: Monthly / Year in Review */}
+            <div style={{ display: "flex", gap: 4, marginBottom: 24, background: "#151515", borderRadius: 10, padding: 3, width: "fit-content" }}>
+              {["monthly", "year"].map((t) => (
+                <button key={t} onClick={() => { setViewTab(t); setSelectedCat(null); setYearSelectedCat(null); }} style={{
+                  padding: "8px 20px", border: "none", borderRadius: 8, cursor: "pointer",
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, transition: "all 0.15s",
+                  background: viewTab === t ? "#282828" : "transparent", color: viewTab === t ? "#E0E0E0" : "#555",
+                }}>{t === "monthly" ? "Monthly" : "Year in Review"}</button>
               ))}
             </div>
 
-            {filtered.length > 0 && (
-              <div style={{ background: "#1a1a1a", borderRadius: 14, padding: 20, border: "1px solid #222", marginBottom: 28 }}>
-                <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 16 }}>Spending Breakdown</div>
-                <CategoryBreakdown transactions={filtered} categories={categories} selectedCat={selectedCat} onSelectCategory={setSelectedCat} />
-              </div>
-            )}
+            {viewTab === "monthly" ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+                  <button onClick={() => navMonth(-1)} style={{ background: "transparent", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 14px", color: "#888", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>‹</button>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 26, color: "#F5F5F5" }}>{MONTHS[month - 1]}</div>
+                    <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{year}</div>
+                  </div>
+                  <button onClick={() => navMonth(1)} style={{ background: "transparent", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 14px", color: "#888", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>›</button>
+                </div>
 
-            {availableMonths.length > 1 && (
-              <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
-                {availableMonths.map((m) => {
-                  const [y, mo] = m.split("-").map(Number);
-                  const active = m === currentMonth;
-                  return (
-                    <button key={m} onClick={() => { setCurrentMonth(m); setSelectedCat(null); }} style={{
-                      padding: "6px 12px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                      background: active ? "#E07A5F22" : "transparent", border: active ? "1px solid #E07A5F55" : "1px solid #222",
-                      color: active ? "#E07A5F" : "#666",
-                    }}>{MONTHS[mo - 1].slice(0, 3)} {y !== new Date().getFullYear() ? y : ""}</button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2 }}>
-                {selectedCat ? `${catMap[selectedCat]?.icon || ""} ${catMap[selectedCat]?.label || selectedCat} · ${displayTxs.length}` : `Transactions · ${filtered.length}`}
-              </div>
-              {selectedCat && (
-                <button onClick={() => setSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
-                  × clear
-                </button>
-              )}
-            </div>
-            {filtered.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px 20px", color: "#444", fontSize: 14, borderRadius: 14, border: "1px dashed #222" }}>No transactions this month</div>
-            ) : (
-              <div style={{ borderRadius: 14, border: "1px solid #222", overflow: "hidden", background: "#161616" }}>
-                {displayTxs.map((tx, i) => {
-                  const cat = catMap[tx.category] || { icon: "📦", label: tx.category, color: "#90A4AE" };
-                  const d = new Date(tx.date + "T12:00:00");
-                  return (
-                    <div key={tx.id} className="tx-row" onClick={() => setEditingTx(tx.id)} style={{
-                      display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
-                      borderBottom: i < displayTxs.length - 1 ? "1px solid #1e1e1e" : "none",
-                      animation: `fadeInUp 0.3s ease ${Math.min(i * 0.03, 0.5)}s both`, cursor: "pointer",
-                    }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${cat.color}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{cat.icon}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, color: "#ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.description}</div>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
-                          <span style={{ fontSize: 11, color: "#555" }}>{d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                          <span style={{ fontSize: 10, color: cat.color, background: `${cat.color}15`, padding: "2px 7px", borderRadius: 4 }}>{cat.label}</span>
-                          {tx.manual_category && <span style={{ fontSize: 10, color: "#555" }}>✎</span>}
-                        </div>
-                      </div>
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 500, color: tx.amount >= 0 ? "#2E7D32" : "#E07A5F", flexShrink: 0 }}>
-                        {tx.amount >= 0 ? "+" : ""}{formatMoney(tx.amount)}
+                <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
+                  {[
+                    { label: "Income", value: totals.income, color: "#2E7D32", prefix: "+" },
+                    { label: "Expenses", value: totals.expenses, color: "#E07A5F", prefix: "-" },
+                    { label: "Net", value: totals.net, color: totals.net >= 0 ? "#2E7D32" : "#E07A5F", prefix: totals.net >= 0 ? "+" : "" },
+                  ].map((card) => (
+                    <div key={card.label} style={{ background: "#1a1a1a", borderRadius: 14, padding: "18px 16px", border: "1px solid #222" }}>
+                      <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>{card.label}</div>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, color: card.color, letterSpacing: -0.5 }}>
+                        {card.prefix}${Math.abs(card.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+
+                {filtered.length > 0 && (
+                  <div style={{ background: "#1a1a1a", borderRadius: 14, padding: 20, border: "1px solid #222", marginBottom: 28 }}>
+                    <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 16 }}>Spending Breakdown</div>
+                    <CategoryBreakdown transactions={filtered} categories={categories} selectedCat={selectedCat} onSelectCategory={setSelectedCat} />
+                  </div>
+                )}
+
+                {availableMonths.length > 1 && (
+                  <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+                    {availableMonths.map((m) => {
+                      const [y, mo] = m.split("-").map(Number);
+                      const active = m === currentMonth;
+                      return (
+                        <button key={m} onClick={() => { setCurrentMonth(m); setSelectedCat(null); }} style={{
+                          padding: "6px 12px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                          background: active ? "#E07A5F22" : "transparent", border: active ? "1px solid #E07A5F55" : "1px solid #222",
+                          color: active ? "#E07A5F" : "#666",
+                        }}>{MONTHS[mo - 1].slice(0, 3)} {y !== new Date().getFullYear() ? y : ""}</button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2 }}>
+                    {selectedCat ? `${catMap[selectedCat]?.icon || ""} ${catMap[selectedCat]?.label || selectedCat} · ${displayTxs.length}` : `Transactions · ${filtered.length}`}
+                  </div>
+                  {selectedCat && (
+                    <button onClick={() => setSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
+                      × clear
+                    </button>
+                  )}
+                </div>
+                {filtered.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "48px 20px", color: "#444", fontSize: 14, borderRadius: 14, border: "1px dashed #222" }}>No transactions this month</div>
+                ) : (
+                  <div style={{ borderRadius: 14, border: "1px solid #222", overflow: "hidden", background: "#161616" }}>
+                    {displayTxs.map((tx, i) => {
+                      const cat = catMap[tx.category] || { icon: "📦", label: tx.category, color: "#90A4AE" };
+                      const d = new Date(tx.date + "T12:00:00");
+                      return (
+                        <div key={tx.id} className="tx-row" onClick={() => setEditingTx(tx.id)} style={{
+                          display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
+                          borderBottom: i < displayTxs.length - 1 ? "1px solid #1e1e1e" : "none",
+                          animation: `fadeInUp 0.3s ease ${Math.min(i * 0.03, 0.5)}s both`, cursor: "pointer",
+                        }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 10, background: `${cat.color}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{cat.icon}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, color: "#ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.description}</div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
+                              <span style={{ fontSize: 11, color: "#555" }}>{d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                              <span style={{ fontSize: 10, color: cat.color, background: `${cat.color}15`, padding: "2px 7px", borderRadius: 4 }}>{cat.label}</span>
+                              {tx.manual_category && <span style={{ fontSize: 10, color: "#555" }}>✎</span>}
+                            </div>
+                          </div>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 500, color: tx.amount >= 0 ? "#2E7D32" : "#E07A5F", flexShrink: 0 }}>
+                            {tx.amount >= 0 ? "+" : ""}{formatMoney(tx.amount)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Year in Review */}
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: 26, color: "#F5F5F5" }}>{year} Year in Review</div>
+                  <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>{yearTxs.length} transaction{yearTxs.length !== 1 ? "s" : ""} this year</div>
+                </div>
+
+                <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
+                  {[
+                    { label: "YTD Income", value: yearTotals.income, color: "#2E7D32", prefix: "+" },
+                    { label: "YTD Expenses", value: yearTotals.expenses, color: "#E07A5F", prefix: "-" },
+                    { label: "YTD Net", value: yearTotals.net, color: yearTotals.net >= 0 ? "#2E7D32" : "#E07A5F", prefix: yearTotals.net >= 0 ? "+" : "" },
+                  ].map((card) => (
+                    <div key={card.label} style={{ background: "#1a1a1a", borderRadius: 14, padding: "18px 16px", border: "1px solid #222" }}>
+                      <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>{card.label}</div>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 500, color: card.color, letterSpacing: -0.5 }}>
+                        {card.prefix}${Math.abs(card.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {yearTxs.length > 0 && (
+                  <div style={{ background: "#1a1a1a", borderRadius: 14, padding: 20, border: "1px solid #222", marginBottom: 28 }}>
+                    <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 16 }}>Yearly Spending Breakdown</div>
+                    <CategoryBreakdown transactions={yearTxs} categories={categories} selectedCat={yearSelectedCat} onSelectCategory={setYearSelectedCat} />
+                  </div>
+                )}
+
+                {yearTxs.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "48px 20px", color: "#444", fontSize: 14, borderRadius: 14, border: "1px dashed #222" }}>No transactions this year</div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2 }}>
+                        {yearSelectedCat ? `${catMap[yearSelectedCat]?.icon || ""} ${catMap[yearSelectedCat]?.label || yearSelectedCat} · ${yearTxs.filter((t) => t.category === yearSelectedCat).length}` : `All Transactions · ${yearTxs.length}`}
+                      </div>
+                      {yearSelectedCat && (
+                        <button onClick={() => setYearSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
+                          × clear
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ borderRadius: 14, border: "1px solid #222", overflow: "hidden", background: "#161616" }}>
+                      {(yearSelectedCat ? yearTxs.filter((t) => t.category === yearSelectedCat) : yearTxs)
+                        .sort((a, b) => b.date.localeCompare(a.date))
+                        .map((tx, i, arr) => {
+                          const cat = catMap[tx.category] || { icon: "📦", label: tx.category, color: "#90A4AE" };
+                          const d = new Date(tx.date + "T12:00:00");
+                          return (
+                            <div key={tx.id} className="tx-row" onClick={() => setEditingTx(tx.id)} style={{
+                              display: "flex", alignItems: "center", gap: 12, padding: "14px 16px",
+                              borderBottom: i < arr.length - 1 ? "1px solid #1e1e1e" : "none",
+                              animation: `fadeInUp 0.3s ease ${Math.min(i * 0.03, 0.5)}s both`, cursor: "pointer",
+                            }}>
+                              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${cat.color}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{cat.icon}</div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 14, color: "#ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.description}</div>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
+                                  <span style={{ fontSize: 11, color: "#555" }}>{d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                                  <span style={{ fontSize: 10, color: cat.color, background: `${cat.color}15`, padding: "2px 7px", borderRadius: 4 }}>{cat.label}</span>
+                                </div>
+                              </div>
+                              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 500, color: tx.amount >= 0 ? "#2E7D32" : "#E07A5F", flexShrink: 0 }}>
+                                {tx.amount >= 0 ? "+" : ""}{formatMoney(tx.amount)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </>
         )}
