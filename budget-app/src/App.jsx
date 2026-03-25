@@ -741,16 +741,40 @@ function Dashboard({ user, onLogout }) {
 
   const updateRules = useCallback(async (newRules) => {
     await supabase.from("recurring_rules").delete().eq("user_id", user.id);
+    let savedRules = newRules;
     if (newRules.length > 0) {
       const toInsert = newRules.map((r) => ({ label: r.label, amount: r.amount || 0, match_name: r.match_name || null, category: r.category, user_id: user.id }));
       const { data } = await supabase.from("recurring_rules").insert(toInsert).select();
-      if (data) setRules(data);
+      if (data) { setRules(data); savedRules = data; }
       else setRules(newRules);
     } else {
       setRules([]);
+      savedRules = [];
     }
+
+    // Apply rules to all existing transactions
+    if (savedRules.length > 0) {
+      const toUpdate = [];
+      for (const tx of transactions) {
+        const absAmount = Math.abs(tx.amount);
+        const match = savedRules.find((r) => {
+          if (r.match_name) return tx.description.toLowerCase().includes(r.match_name.toLowerCase());
+          return Math.abs(Math.abs(r.amount) - absAmount) < 0.01;
+        });
+        if (match && (tx.category !== match.category || tx.description !== match.label)) {
+          toUpdate.push({ ...tx, description: match.label, category: match.category, manual_category: true });
+        }
+      }
+      if (toUpdate.length > 0) {
+        await Promise.all(toUpdate.map(({ id, description, category }) =>
+          supabase.from("transactions").update({ description, category, manual_category: true }).eq("id", id)
+        ));
+        setTransactions((prev) => prev.map((t) => toUpdate.find((u) => u.id === t.id) || t));
+      }
+    }
+
     setShowRulesManager(false);
-  }, [user.id]);
+  }, [user.id, transactions]);
 
   const clearMonth = useCallback(async () => {
     const [cy, cm] = currentMonth.split("-").map(Number);
