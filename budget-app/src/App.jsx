@@ -43,6 +43,26 @@ function categorize(description) {
   return "other";
 }
 
+function exportToCSV(transactions, filename) {
+  if (!transactions || transactions.length === 0) return;
+  const headers = ["Date", "Description", "Category", "Amount"];
+  const rows = transactions.map((tx) => [
+    tx.date,
+    `"${(tx.description || "").replace(/"/g, '""')}"`,
+    `"${(tx.category || "").replace(/"/g, '""')}"`,
+    tx.amount
+  ]);
+  const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function parseAmount(val) {
   if (typeof val === "number") return val;
   const cleaned = String(val).replace(/[$,\s"]/g, "").replace(/\((.+)\)/, "-$1");
@@ -985,12 +1005,20 @@ function Dashboard({ user, onLogout }) {
                   <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2 }}>
                     {selectedCat ? `${catMap[selectedCat]?.icon || ""} ${catMap[selectedCat]?.label || selectedCat} · ${displayTxs.length}` : `Transactions · ${filtered.length}`}
                   </div>
-                  {selectedCat && (
-                    <button onClick={() => setSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
-                      × clear
-                    </button>
-                  )}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {filtered.length > 0 && (
+                      <button onClick={() => exportToCSV(displayTxs, `budget_${year}_${String(month).padStart(2, '0')}${selectedCat ? `_${selectedCat}` : ""}.csv`)} style={{ background: "transparent", border: "1px solid #333", borderRadius: 8, padding: "4px 10px", color: "#888", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#E07A5F"; e.currentTarget.style.color = "#E07A5F"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>
+                        Export CSV
+                      </button>
+                    )}
+                    {selectedCat && (
+                      <button onClick={() => setSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
+                        × clear
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {filtered.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "48px 20px", color: "#444", fontSize: 14, borderRadius: 14, border: "1px dashed #222" }}>No transactions this month</div>
@@ -1061,12 +1089,20 @@ function Dashboard({ user, onLogout }) {
                       <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1.2 }}>
                         {yearSelectedCat ? `${catMap[yearSelectedCat]?.icon || ""} ${catMap[yearSelectedCat]?.label || yearSelectedCat} · ${yearTxs.filter((t) => t.category === yearSelectedCat).length}` : `All Transactions · ${yearTxs.length}`}
                       </div>
-                      {yearSelectedCat && (
-                        <button onClick={() => setYearSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
-                          onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
-                          × clear
-                        </button>
-                      )}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        {yearTxs.length > 0 && (
+                          <button onClick={() => exportToCSV(yearSelectedCat ? yearTxs.filter((t) => t.category === yearSelectedCat) : yearTxs, `budget_${year}${yearSelectedCat ? `_${yearSelectedCat}` : ""}.csv`)} style={{ background: "transparent", border: "1px solid #333", borderRadius: 8, padding: "4px 10px", color: "#888", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#E07A5F"; e.currentTarget.style.color = "#E07A5F"; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#333"; e.currentTarget.style.color = "#888"; }}>
+                            Export CSV
+                          </button>
+                        )}
+                        {yearSelectedCat && (
+                          <button onClick={() => setYearSelectedCat(null)} style={{ background: "transparent", border: "none", color: "#555", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", padding: "2px 6px" }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = "#ccc"} onMouseLeave={(e) => e.currentTarget.style.color = "#555"}>
+                            × clear
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div style={{ borderRadius: 14, border: "1px solid #222", overflow: "hidden", background: "#161616" }}>
                       {(yearSelectedCat ? yearTxs.filter((t) => t.category === yearSelectedCat) : yearTxs)
